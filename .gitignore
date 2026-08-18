@@ -1,0 +1,43 @@
+# Environment & API Keys (Strictly Ignored)
+.env
+.env.*
+*.env
+*.pem
+*.key
+api_keys.json
+secrets.json
+
+# Python Caches & Virtual Envs
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.pytest_cache/
+.deepeval/
+
+# Frontend / Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+
+# Logs & Temporary Files
+*.log
+uploads/
+RAG_Techniques/uploads/
+npm-debug.log*
+yarn-debug.log*
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

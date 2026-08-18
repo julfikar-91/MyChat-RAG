@@ -1,0 +1,14 @@
+# Ignore environment and API keys
+.env
+.env.*
+*.env
+
+# Ignore Python caches & virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.deepeval/
+
+# Ignore uploads
+uploads/
