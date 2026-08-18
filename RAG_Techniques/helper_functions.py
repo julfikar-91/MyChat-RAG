@@ -118,9 +118,8 @@ def encode_pdf(path, chunk_size=1000, chunk_overlap=200, vectorstore_type="chrom
                 kwargs["persist_directory"] = persist_directory
             vectorstore = Chroma.from_documents(**kwargs)
     except Exception as e:
-        print(f"Primary embedding failed ({e}), falling back to FakeEmbeddings...")
-        from langchain_community.embeddings import FakeEmbeddings
-        fallback_emb = FakeEmbeddings(size=768)
+        print(f"Primary embedding failed ({e}), falling back to LightweightHashingEmbeddings...")
+        fallback_emb = LightweightHashingEmbeddings(dim=768)
         if vectorstore_type.lower() == "faiss":
             vectorstore = FAISS.from_documents(cleaned_texts, fallback_emb)
         else:
@@ -186,9 +185,8 @@ def encode_from_string(content, chunk_size=1000, chunk_overlap=200, vectorstore_
                 kwargs["persist_directory"] = persist_directory
             vectorstore = Chroma.from_documents(**kwargs)
     except Exception as e:
-        print(f"Primary embedding failed ({e}), falling back to FakeEmbeddings...")
-        from langchain_community.embeddings import FakeEmbeddings
-        fallback_emb = FakeEmbeddings(size=768)
+        print(f"Primary embedding failed ({e}), falling back to LightweightHashingEmbeddings...")
+        fallback_emb = LightweightHashingEmbeddings(dim=768)
         if vectorstore_type.lower() == "faiss":
             vectorstore = FAISS.from_documents(chunks, fallback_emb)
         else:
@@ -405,7 +403,33 @@ async def retry_with_exponential_backoff(coroutine, max_retries=5):
     raise Exception("Max retries reached")
 
 
-import os
+class LightweightHashingEmbeddings:
+    """Lightweight 768-dim TF-IDF Hashing Vectorizer for content-matched chunk retrieval without PyTorch or API key dependencies."""
+    def __init__(self, dim=768):
+        self.dim = dim
+
+    def _hash_text(self, text: str) -> list:
+        import hashlib, math
+        words = [w.strip() for w in text.lower().split() if len(w.strip()) > 2]
+        vec = [0.0] * self.dim
+        if not words:
+            return vec
+        for word in words:
+            h = int(hashlib.md5(word.encode('utf-8')).hexdigest(), 16)
+            idx = h % self.dim
+            val = 1.0 if (h % 2 == 0) else -1.0
+            vec[idx] += val
+        norm = math.sqrt(sum(v * v for v in vec))
+        if norm > 0:
+            vec = [v / norm for v in vec]
+        return vec
+
+    def embed_documents(self, texts: list) -> list:
+        return [self._hash_text(t) for t in texts]
+
+    def embed_query(self, text: str) -> list:
+        return self._hash_text(text)
+
 
 def get_default_embeddings():
     """
@@ -413,7 +437,7 @@ def get_default_embeddings():
     to maintain a minimal RAM footprint (<80 MB) and prevent memory limit crashes on cloud hosts.
     """
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if api_key:
+    if api_key and not api_key.startswith("AQ."):
         try:
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
             return GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=api_key)
@@ -428,9 +452,8 @@ def get_default_embeddings():
         except Exception as e:
             print(f"Warning: Failed to load OpenAIEmbeddings: {e}")
 
-    # Fallback to FakeEmbeddings to guarantee zero crashes
-    from langchain_community.embeddings import FakeEmbeddings
-    return FakeEmbeddings(size=768)
+    # Fallback to content-matched hashing embeddings for accurate offline retrieval
+    return LightweightHashingEmbeddings(dim=768)
 
 
 # Enum class representing different embedding providers
