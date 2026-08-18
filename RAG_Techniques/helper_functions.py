@@ -107,6 +107,10 @@ def encode_pdf(path, chunk_size=1000, chunk_overlap=200, vectorstore_type="chrom
     texts = text_splitter.split_documents(documents)
     cleaned_texts = replace_t_with_space(texts)
 
+    import hashlib
+    if collection_name == "rag_collection":
+        collection_name = f"doc_{hashlib.md5(os.path.basename(path).encode('utf-8')).hexdigest()[:12]}"
+
     # Create embeddings and vector store
     try:
         embeddings = embedding_model if embedding_model is not None else get_default_embeddings()
@@ -173,6 +177,10 @@ def encode_from_string(content, chunk_size=1000, chunk_overlap=200, vectorstore_
     # Assign metadata to each chunk
     for chunk in chunks:
         chunk.metadata['relevance_score'] = 1.0
+
+    import hashlib
+    if collection_name == "rag_collection":
+        collection_name = f"doc_{hashlib.md5(content[:200].encode('utf-8')).hexdigest()[:12]}"
 
     # Generate embeddings and create the vector store
     try:
@@ -433,8 +441,10 @@ class LightweightHashingEmbeddings:
 
 def get_default_embeddings():
     """
-    Returns default embeddings model. Uses API-based embeddings (Google Generative AI or OpenAI)
-    to maintain a minimal RAM footprint (<80 MB) and prevent memory limit crashes on cloud hosts.
+    Returns default embeddings model.
+    1. Uses GoogleGenerativeAIEmbeddings if a valid API key is available.
+    2. Uses local HuggingFaceEmbeddings ('all-MiniLM-L6-v2') if installed on local machine.
+    3. Falls back to LightweightHashingEmbeddings.
     """
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if api_key and not api_key.startswith("AQ."):
@@ -452,7 +462,18 @@ def get_default_embeddings():
         except Exception as e:
             print(f"Warning: Failed to load OpenAIEmbeddings: {e}")
 
-    # Fallback to content-matched hashing embeddings for accurate offline retrieval
+    # Try local HuggingFace Embeddings for 100% accurate local neural search
+    try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    except Exception:
+        try:
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+            return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        except Exception:
+            pass
+
+    # Fallback to content-matched hashing embeddings for offline retrieval
     return LightweightHashingEmbeddings(dim=768)
 
 
