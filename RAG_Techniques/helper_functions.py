@@ -389,15 +389,22 @@ import os
 
 def get_default_embeddings():
     """
-    Returns default embeddings model. Uses local HuggingFaceEmbeddings ('all-MiniLM-L6-v2')
-    for vector storage to ensure 100% reliable local document search without API key dependencies.
+    Returns default embeddings model. Uses API-based embeddings (Google Generative AI or OpenAI)
+    to maintain a minimal RAM footprint (<80 MB) and prevent memory limit crashes on cloud hosts.
     """
-    try:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    except Exception:
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if api_key:
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        return GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=api_key)
+    
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        from langchain_openai import OpenAIEmbeddings
+        return OpenAIEmbeddings(openai_api_key=openai_key)
+
+    # Default fallback
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+    return GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
 
 # Enum class representing different embedding providers
@@ -454,7 +461,7 @@ def get_langchain_model_provider(provider: ModelProvider, model_id: str = None):
         api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("Missing GEMINI_API_KEY. Please set GEMINI_API_KEY in .env.")
-        model_name = model_id or "gemini-3.5-flash"
+        model_name = model_id or "gemini-1.5-flash"
         return ChatGoogleGenerativeAI(model=model_name, google_api_key=api_key)
     else:
         raise ValueError(f"Unsupported model provider: {provider}")
