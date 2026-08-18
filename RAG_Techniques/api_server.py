@@ -38,6 +38,7 @@ allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
+    "https://my-chat-rag.vercel.app",
 ]
 if frontend_url:
     for url in frontend_url.split(","):
@@ -46,8 +47,8 @@ if frontend_url:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if frontend_url else ["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app" if not frontend_url else None,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -159,6 +160,8 @@ def load_default_document_if_available():
                 except Exception as e:
                     print(f"Failed to auto-load default document {file}: {e}")
 
+@app.get("/")
+@app.get("/health")
 @app.get("/api/health")
 def health_check():
     gemini_key = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
